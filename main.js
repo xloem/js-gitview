@@ -45,6 +45,7 @@ async function navpath(dir) {
 		link.appendTo($('<td>')).appendTo(tr)
 		tbody.append(tr)
 	}
+	let readme = null
 	for (let file of await pfs.readdir(dir)) {
 		if (file[0] == '.') continue
 		let tr = $('<tr>')
@@ -57,12 +58,18 @@ async function navpath(dir) {
 			link.attr('href', URL.createObjectURL(blob))
 		}
 		link.appendTo($('<td>')).appendTo(tr)
-		let log = await git.log({dir: path, depth: 1, ref: 'master'})
-		log = log[0].message
-		let line = log.indexOf('\n')
-		if (line >= 0) log = log.slice(0, line)
-		$('<td>').text(log).appendTo(tr)
+		//let log = await git.log({dir: path, depth: 1})
+		//log = log[0].message
+		//let line = log.indexOf('\n')
+		//if (line >= 0) log = log.slice(0, line)
+		//$('<td>').text(log).appendTo(tr)
 		tbody.append(tr)
+		if (file === 'README.md') {
+			readme = await pfs.readFile(path, 'utf8')
+		}
+	}
+	if (readme) {
+		$('#readme').html(marked(readme))
 	}
 }
 
