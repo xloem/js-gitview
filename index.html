@@ -10,7 +10,10 @@
 	<script src='node_modules/@isomorphic-git/lightning-fs/dist/lightning-fs.min.js'></script>
 	<script src='main.js'></script>
 </head>
-<body onload='main()'>
+<body onload='gitview({
+	url: "https://github.com/isomorphic-git/isomorphic-git",
+	corsProxy: "https://cors.isomorphic-git.org",
+	fs: new LightningFS("fs")})'>
 	<div class='main-container'>
 		<div class='main-elem'>
 			<div class='elem-head'>

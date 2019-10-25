@@ -1,31 +1,44 @@
-window.fs = new LightningFS('fs')
-window.pfs = window.fs.promises
-git.plugins.set('fs', window.fs)
+let gitview
 
-window.gitevents = new EventTarget()
+{
+let pfs
+
 git.plugins.set('emitter', {emit:(type,obj) => {
 	if (type === 'message') setmessage(obj)
 	else if (type === 'progress') setprogress(obj)
 }})
 
-window.onpopstate = updatenavpath
-
-async function main() {
+gitview = async function(opts) {
+	pfs = opts.fs.promises
+	git.plugins.set('fs', opts.fs)
+	//make_structure(opts.elem || $('body'))
 	setprogress({phase: 'Cloning'})
 	await git.clone({
 		gitdir: '/',
-		corsProxy: 'https://cors.isomorphic-git.org',
-		url: 'https://github.com/isomorphic-git/isomorphic-git',
-		ref: 'master',
+		corsProxy: opts.corsProxy,
+		url: opts.url,
+		ref: opts.ref || 'master',
 		singleBranch: true,
 		noCheckout: true,
-		depth: 10
+		depth: 1
 	})
 	delprogress()
 	updatenavpath()
 }
 
-async function updatenavpath(event)
+/*
+let filerows, readme_elem, readme_title, readme_body
+
+let make_structure = function(root) {
+	let maincont = $('<div>').addClass('main-container')
+	let main = $('<div>').addClass('main-elem').appendTo(maincont)
+	let head = $('<div>').addClass('elem-head').appendTo(
+	let body = $('<div>').addClass('elem-body').appendTo(filesmain)
+	let table = $('<div>')
+}
+*/
+
+let updatenavpath = async function(event)
 {
 	let loc = window.location.href
 	let idx = loc.indexOf('#')
@@ -33,8 +46,9 @@ async function updatenavpath(event)
 	else loc = loc.slice(idx + 1)
 	await navpath(loc)
 }
+window.onpopstate = updatenavpath
 
-async function navpath(dir) {
+let navpath = async function(dir) {
 	let oid = await git.resolveRef({gitdir:'/',ref:'HEAD'})
 	let tree = await git.readObject({gitdir:'/',oid:oid,filepath:dir})
 	let tbody = $('.files #filerows')
@@ -94,6 +108,7 @@ async function navpath(dir) {
 	}
 }
 
+let setmessage, setprogress, delprogress
 {
 	let dialog = null
 	let prog = null
@@ -115,13 +130,13 @@ async function navpath(dir) {
 		$(':button',dialog[0].parent).hide()
 		prog.progressbar()
 	}
-	function setmessage(newmsg) {
+	setmessage = function(newmsg) {
 		console.log(newmsg)
 		msg.text(newmsg)
 		//$('<p>').text(newmsg).appendTo(msg)
 		dialog.dialog('open')
 	}
-	function setprogress(pevent) {
+	setprogress = function(pevent) {
 		if (!dialog) init()
 		dialog.dialog('option', 'title', pevent.phase)
 		if (pevent.lengthComputable) {
@@ -133,8 +148,10 @@ async function navpath(dir) {
 			dialog.dialog('open')
 		}
 	}
-	function delprogress() {
+	delprogress = function() {
 		dialog.dialog('close')
 		msg.empty()
 	}
+}
+
 }
