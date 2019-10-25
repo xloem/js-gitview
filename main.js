@@ -37,27 +37,33 @@ async function updatenavpath(event)
 async function navpath(dir) {
 	let oid = await git.resolveRef({gitdir:'/',ref:'HEAD'})
 	let tree = await git.readObject({gitdir:'/',oid:oid,filepath:dir})
-	let tbody = $('tbody#files')
+	let tbody = $('.files #filerows')
 	tbody.empty()
 	let readme = null
 	for (let entry of tree.object.entries) {
 		let file = entry.path
-		let tr = $('<tr>')
+		let tr = $('<tr>').addClass('filerow')
 		let link = $('<a>').text(file)
 		let path = dir ? dir + '/' + file : file
+		let icon = $('<img>').attr('height', 16)
 		if (entry.type === 'tree') {
+			icon.attr('src', 'folder.svg')
 			link.attr('href', '#' + path)
 		} else {
+			icon.attr('src', 'file.svg')
 			let blob = await git.readObject({gitdir:'/',oid:entry.oid})
 			blob = new Blob([blob.object])
 			link.attr('href', URL.createObjectURL(blob))
 		}
-		link.appendTo($('<td>')).appendTo(tr)
+		$('<td>').addClass('icon').append(icon).appendTo(tr)
+		$('<td>').addClass('content').append(link).appendTo(tr)
 		//let log = await git.log({gitdir: '/', dir: path, depth: 1})
 		//log = log[0].message
 		//let line = log.indexOf('\n')
 		//if (line >= 0) log = log.slice(0, line)
 		//$('<td>').text(log).appendTo(tr)
+		$('<td>').addClass('message').appendTo(tr)
+		$('<td>').addClass('age').appendTo(tr)
 		if (entry.type === 'tree') {
 			tbody.prepend(tr)
 		} else {
@@ -72,13 +78,18 @@ async function navpath(dir) {
 		let link = $('<a>').text('..')
 		let path = dir.replace(/\/?[^\/]*$/,'')
 		link.attr('href', '#' + path)
-		let tr = $('<tr>')
-		link.appendTo($('<td>')).appendTo(tr)
+		let tr = $('<tr>').addClass('filerow')
+		$('<td>').appendTo(tr)
+		$('<td>').append(link).appendTo(tr)
+		$('<td>').appendTo(tr)
+		$('<td>').appendTo(tr)
 		tbody.prepend(tr)
 	}
 	if (readme) {
+		$('<h3>').text('README.md').appendTo($('#readme-title'))
 		$('#readme').html(marked(readme))
 	} else {
+		$('#readme-title').empty()
 		$('#readme').empty()
 	}
 }

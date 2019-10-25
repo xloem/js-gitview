@@ -1,0 +1,68 @@
+body {
+	font-family: sans-serif;
+	font-size: 14px;
+	line-height: 1.5;
+	background-color: #fff;
+}
+table {
+	border-spacing: 0;
+}
+h1, h2, h3, h4, h5, h6 {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+.main-elem {
+	margin-bottom: 10px;
+	border: 1px solid #e2e2e2;
+	border-radius: 2px;
+}
+.main-container {
+	margin-right: auto;
+	margin-left: auto;
+	max-width: 1006px;
+}
+.elem-head {
+	margin-bottom: -1px;
+	border-bottom: 1px solid #e3e3e3;
+	padding: 8px 16px;
+	font-size: 14px;
+	font-weight: 600;
+	background-color: #f8f8f8;
+}
+.files td {
+	padding: 6px 3px;
+	line-height: 20px;
+	border-top: 1px solid #ececec;
+	color: #737373;
+}
+.filerow:hover {
+	background-color: #f7f7f7;
+}
+.files {
+	width: 100%;
+	background: #fff;
+}
+.files td.icon {
+	width: 17px;
+	padding-right: 2px;
+	padding-left: 10px;
+}
+.files td.content {
+	max-width: 180px
+}
+.files td.message {
+	max-width: 442px;
+	padding-left: 10px;
+	overflow: hidden;
+}
+.files td.age {
+	width: 125px;
+	padding-right: 10px;
+	text-align: right;
+	white-space: nowrap;
+}
+#readme {
+	font-size: 16px;
+	line-height: 1.5;
+	padding: 40px 48px;
+}
