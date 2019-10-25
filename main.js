@@ -13,15 +13,15 @@ window.onpopstate = updatenavpath
 async function main() {
 	setprogress({phase: 'Cloning'})
 	await git.clone({
-		dir: '/',
+		gitdir: '/',
 		corsProxy: 'https://cors.isomorphic-git.org',
 		url: 'https://github.com/isomorphic-git/isomorphic-git',
 		ref: 'master',
 		singleBranch: true,
+		noCheckout: true,
 		depth: 10
 	})
 	delprogress()
-	//console.log(await git.resolveRef({ref:'HEAD'}))
 	updatenavpath()
 }
 
@@ -29,47 +29,57 @@ async function updatenavpath(event)
 {
 	let loc = window.location.href
 	let idx = loc.indexOf('#')
-	if (idx === -1) loc = '/'
+	if (idx === -1) loc = ''
 	else loc = loc.slice(idx + 1)
 	await navpath(loc)
 }
 
 async function navpath(dir) {
+	let oid = await git.resolveRef({gitdir:'/',ref:'HEAD'})
+	let tree = await git.readObject({gitdir:'/',oid:oid,filepath:dir})
 	let tbody = $('tbody#files')
 	tbody.empty()
-	if (dir != '/') {
-		let link = $('<a>').text('..')
-		let path = dir.replace(/\/[^\/]*\/$/,'/')
-		link.attr('href', '#' + path)
-		let tr = $('<tr>')
-		link.appendTo($('<td>')).appendTo(tr)
-		tbody.append(tr)
-	}
 	let readme = null
-	for (let file of await pfs.readdir(dir)) {
-		if (file[0] == '.') continue
+	for (let entry of tree.object.entries) {
+		let file = entry.path
 		let tr = $('<tr>')
 		let link = $('<a>').text(file)
-		let path = dir + file
-		if ((await pfs.stat(path)).type === 'dir') {
-			link.attr('href', '#' + path + '/')
+		let path = dir ? dir + '/' + file : file
+		if (entry.type === 'tree') {
+			link.attr('href', '#' + path)
 		} else {
-			let blob = new Blob([await pfs.readFile(path)])
+			let blob = await git.readObject({gitdir:'/',oid:entry.oid})
+			blob = new Blob([blob.object])
 			link.attr('href', URL.createObjectURL(blob))
 		}
 		link.appendTo($('<td>')).appendTo(tr)
-		//let log = await git.log({dir: path, depth: 1})
+		//let log = await git.log({gitdir: '/', dir: path, depth: 1})
 		//log = log[0].message
 		//let line = log.indexOf('\n')
 		//if (line >= 0) log = log.slice(0, line)
 		//$('<td>').text(log).appendTo(tr)
-		tbody.append(tr)
-		if (file === 'README.md') {
-			readme = await pfs.readFile(path, 'utf8')
+		if (entry.type === 'tree') {
+			tbody.prepend(tr)
+		} else {
+			tbody.append(tr)
 		}
+		if (file === 'README.md') {
+			readme = await git.readObject({gitdir:'/',oid:entry.oid,encoding:'utf8'})
+			readme = readme.object
+		}
+	}
+	if (dir != '') {
+		let link = $('<a>').text('..')
+		let path = dir.replace(/\/?[^\/]*$/,'')
+		link.attr('href', '#' + path)
+		let tr = $('<tr>')
+		link.appendTo($('<td>')).appendTo(tr)
+		tbody.prepend(tr)
 	}
 	if (readme) {
 		$('#readme').html(marked(readme))
+	} else {
+		$('#readme').empty()
 	}
 }
 
@@ -96,7 +106,8 @@ async function navpath(dir) {
 	}
 	function setmessage(newmsg) {
 		console.log(newmsg)
-		$('<p>').text(newmsg).appendTo(msg)
+		msg.text(newmsg)
+		//$('<p>').text(newmsg).appendTo(msg)
 		dialog.dialog('open')
 	}
 	function setprogress(pevent) {
