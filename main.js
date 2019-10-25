@@ -23,6 +23,18 @@ gitview = async function(opts) {
 		depth: 1
 	})
 	delprogress()
+
+	let log = await git.log({gitdir: '/', depth: 1})
+	log = log[0]
+	let logname = log.author.email.slice(0, log.author.email.indexOf('@') - 1)
+	let logmsg = log.message
+	let logline = logmsg.indexOf('\n')
+	if (logline >= 0) logmsg = logmsg.slice(0, logline)
+	$('#lastcommit-log').html('<b>' + logname + '</b> ' + logmsg)
+	let logid = log.oid.slice(0, 7)
+	let logtime = new Date((log.author.timestamp + log.author.timezoneOffset * 60) * 1000)
+	$('#lastcommit-id').html('Latest commit ' + logid + ' on ' + logtime.toDateString())
+
 	updatenavpath()
 }
 

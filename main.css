@@ -23,11 +23,32 @@ h1, h2, h3, h4, h5, h6 {
 }
 .elem-head {
 	margin-bottom: -1px;
-	border-bottom: 1px solid #e3e3e3;
+	border-bottom: 1px solid #e2e2e2;
+	background-color: #f8f8f8;
+}
+.files-head {
+	position: relative;
+	padding: 10px;
+	line-height: 20px;
+	color: #606060;
+	display: flex;
+}
+.files-head #lastcommit-log {
+	font-size: 12px;
+	margin-right: 16px;
+	flex: 1 1 auto;
+}
+.files-head #lastcommit-id {
+	font-size: 13px;
+	display: flex;
+	white-space: nowrap;
+	align-self: flex-start;
+	align-items: baseline;
+}
+.readme-head {
 	padding: 8px 16px;
 	font-size: 14px;
 	font-weight: 600;
-	background-color: #f8f8f8;
 }
 .files td {
 	padding: 6px 3px;
