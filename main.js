@@ -1,7 +1,7 @@
 let gitview
 
 {
-let pfs
+let pfs, gitdir
 
 git.plugins.set('emitter', {emit:(type,obj) => {
 	if (type === 'message') setmessage(obj)
@@ -13,9 +13,12 @@ gitview = async function(opts) {
 	git.plugins.set('fs', opts.fs)
 	//make_structure(opts.elem || $('body'))
 	setprogress({phase: 'Cloning'})
+	console.log(opts.url)
+	let id = (await git.hashBlob({object:opts.url})).oid
+	gitdir = '/' + id
 	await git.clone({
-		gitdir: '/',
-		corsProxy: opts.corsProxy,
+		gitdir: gitdir,
+		corsProxy: opts.url.indexOf('github.com') >= 0 ? 'https://cors.isomorphic-git.org' : null,
 		url: opts.url,
 		ref: opts.ref || 'master',
 		singleBranch: true,
@@ -24,9 +27,9 @@ gitview = async function(opts) {
 	})
 	delprogress()
 
-	let log = await git.log({gitdir: '/', depth: 1})
+	let log = await git.log({gitdir: gitdir, depth: 1})
 	log = log[0]
-	let logname = log.author.email.slice(0, log.author.email.indexOf('@') - 1)
+	let logname = log.author.email.slice(0, log.author.email.indexOf('@'))
 	let logmsg = log.message
 	let logline = logmsg.indexOf('\n')
 	if (logline >= 0) logmsg = logmsg.slice(0, logline)
@@ -52,17 +55,15 @@ let make_structure = function(root) {
 
 let updatenavpath = async function(event)
 {
-	let loc = window.location.href
-	let idx = loc.indexOf('#')
-	if (idx === -1) loc = ''
-	else loc = loc.slice(idx + 1)
+	let loc = location.hash
+	if (loc) loc = loc.slice(1)
 	await navpath(loc)
 }
 window.onpopstate = updatenavpath
 
 let navpath = async function(dir) {
-	let oid = await git.resolveRef({gitdir:'/',ref:'HEAD'})
-	let tree = await git.readObject({gitdir:'/',oid:oid,filepath:dir})
+	let oid = await git.resolveRef({gitdir:gitdir,ref:'HEAD'})
+	let tree = await git.readObject({gitdir:gitdir,oid:oid,filepath:dir})
 	let tbody = $('.files #filerows')
 	tbody.empty()
 	let readme = null
@@ -77,13 +78,13 @@ let navpath = async function(dir) {
 			link.attr('href', '#' + path)
 		} else {
 			icon.attr('src', 'file.svg')
-			let blob = await git.readObject({gitdir:'/',oid:entry.oid})
+			let blob = await git.readObject({gitdir:gitdir,oid:entry.oid})
 			blob = new Blob([blob.object])
 			link.attr('href', URL.createObjectURL(blob))
 		}
 		$('<td>').addClass('icon').append(icon).appendTo(tr)
 		$('<td>').addClass('content').append(link).appendTo(tr)
-		//let log = await git.log({gitdir: '/', dir: path, depth: 1})
+		//let log = await git.log({gitdir: gitdir, depth: 1})
 		//log = log[0].message
 		//let line = log.indexOf('\n')
 		//if (line >= 0) log = log.slice(0, line)
@@ -96,7 +97,7 @@ let navpath = async function(dir) {
 			tbody.append(tr)
 		}
 		if (file === 'README.md') {
-			readme = await git.readObject({gitdir:'/',oid:entry.oid,encoding:'utf8'})
+			readme = await git.readObject({gitdir:gitdir,oid:entry.oid,encoding:'utf8'})
 			readme = readme.object
 		}
 	}
@@ -114,9 +115,11 @@ let navpath = async function(dir) {
 	if (readme) {
 		$('<h3>').text('README.md').appendTo($('#readme-title'))
 		$('#readme').html(marked(readme))
+		$('#readme-elem').show()
 	} else {
 		$('#readme-title').empty()
 		$('#readme').empty()
+		$('#readme-elem').hide()
 	}
 }
 

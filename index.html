@@ -11,14 +11,13 @@
 	<script src='main.js'></script>
 </head>
 <body onload='gitview({
-	url: "https://github.com/isomorphic-git/isomorphic-git",
-	corsProxy: "https://cors.isomorphic-git.org",
+	url: location.search ? location.search.slice(1) : "https://github.com/isomorphic-git/isomorphic-git",
 	fs: new LightningFS("fs")})'>
 	<div class='main-container'>
 		<div class='main-elem'>
 			<div class='elem-head files-head'>
-				<div id='lastcommit-log'>test</div>
-				<div id='lastcommit-id'>test</div>
+				<div id='lastcommit-log'></div>
+				<div id='lastcommit-id'></div>
 			</div>
 			<div class='elem-body'>
 				<table class='files'>
