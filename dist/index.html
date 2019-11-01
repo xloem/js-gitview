@@ -1,0 +1,12 @@
+<html>
+<head>
+	<title>js-gitview</title>
+	<script src='../node_modules/@isomorphic-git/lightning-fs/dist/lightning-fs.min.js'></script>
+	<script src='gitview.js'></script>
+</head>
+<body onload='gitview({
+	elem: "body",
+	url: location.search ? location.search.slice(1) : "https://github.com/isomorphic-git/isomorphic-git",
+	fs: new LightningFS("fs")})'>
+</body>
+</html>

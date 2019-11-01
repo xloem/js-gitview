@@ -1,6 +1,14 @@
-let gitview
+import 'components-jqueryui/themes/base/jquery-ui.css'
+import '../res/main.css'
+import mainHtml from '../res/main.html'
+import fileSvg from '../res/file.svg'
+import dirSvg from '../res/dir.svg'
 
-{
+import $ from 'jquery'
+import 'components-jqueryui'
+import marked from 'marked'
+import * as git from 'isomorphic-git'
+
 let pfs, gitdir
 
 git.plugins.set('emitter', {emit:(type,obj) => {
@@ -8,9 +16,14 @@ git.plugins.set('emitter', {emit:(type,obj) => {
 	else if (type === 'progress') setprogress(obj)
 }})
 
-gitview = async function(opts) {
+const fileImgUrl = URL.createObjectURL(new Blob([fileSvg], {type:'image/svg+xml'}))
+const dirImgUrl = URL.createObjectURL(new Blob([dirSvg], {type:'image/svg+xml'}))
+
+export async function gitview(opts) {
+
 	pfs = opts.fs.promises
 	git.plugins.set('fs', opts.fs)
+        $(opts.elem || 'body').html(mainHtml)
 	//make_structure(opts.elem || $('body'))
 	setprogress({phase: 'Cloning'})
 	console.log(opts.url)
@@ -74,10 +87,10 @@ let navpath = async function(dir) {
 		let path = dir ? dir + '/' + file : file
 		let icon = $('<img>').attr('height', 16)
 		if (entry.type === 'tree') {
-			icon.attr('src', 'folder.svg')
+			icon.attr('src', dirImgUrl)
 			link.attr('href', '#' + path)
 		} else {
-			icon.attr('src', 'file.svg')
+			icon.attr('src', fileImgUrl)
 			let blob = await git.readObject({gitdir:gitdir,oid:entry.oid})
 			blob = new Blob([blob.object])
 			link.attr('href', URL.createObjectURL(blob))
@@ -167,6 +180,4 @@ let setmessage, setprogress, delprogress
 		dialog.dialog('close')
 		msg.empty()
 	}
-}
-
 }
