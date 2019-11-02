@@ -22,20 +22,21 @@ const dirImgUrl = URL.createObjectURL(new Blob([dirSvg], {type:'image/svg+xml'})
 
 export async function gitview(opts) {
 
-	let fs = new LightningFS(opts.url)
+	let url = (new URL(opts.url, window.location.href)).href
+	let fs = new LightningFS(url)
 	pfs = fs.promises
 	git.plugins.set('fs', fs)
         $(opts.elem || 'body').html(mainHtml)
 	//make_structure(opts.elem || $('body'))
 	setprogress({phase: 'Cloning'})
-	console.log(opts.url)
+	console.log(url)
 	//let id = (await git.hashBlob({object:opts.url})).oid
 	gitdir = '/'// + id
 	try {
 		await git.clone({
 			gitdir: gitdir,
-			corsProxy: opts.url.indexOf('github.com') >= 0 ? 'https://cors.isomorphic-git.org' : null,
-			url: opts.url,
+			corsProxy: url.indexOf('github.com') >= 0 ? 'https://cors.isomorphic-git.org' : null,
+			url: url,
 			ref: opts.ref || 'master',
 			singleBranch: true,
 			noCheckout: true,
@@ -44,9 +45,9 @@ export async function gitview(opts) {
 	} catch (e) {
 		if (e.code !== git.E.RemoteDoesNotSupportSmartHTTP) throw e
 		setprogress({phase: 'Reading HTTP Filesystem'})
-		fs = new LightningFS(opts.url+'_httpbacked', {
+		fs = new LightningFS(url+'_httpbacked', {
 			wipe: true,
-			url: opts.url
+			url: url
 		})
 		pfs = fs.promises
 		git.plugins.set('fs', fs)
