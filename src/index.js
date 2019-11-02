@@ -21,7 +21,6 @@ const fileImgUrl = URL.createObjectURL(new Blob([fileSvg], {type:'image/svg+xml'
 const dirImgUrl = URL.createObjectURL(new Blob([dirSvg], {type:'image/svg+xml'}))
 
 export async function gitview(opts) {
-
 	let url = (new URL(opts.url, window.location.href)).href
 	branch = opts.ref || 'master'
 	let fs = new LightningFS(url)
@@ -34,7 +33,7 @@ export async function gitview(opts) {
 	//let id = (await git.hashBlob({object:opts.url})).oid
 	gitdir = '/'// + id
 	try {
-		try {
+		if (opts.mode === 'smart') {
 			await git.clone({
 				gitdir: gitdir,
 				corsProxy: url.indexOf('github.com') >= 0 ? 'https://cors.isomorphic-git.org' : null,
@@ -46,24 +45,45 @@ export async function gitview(opts) {
 				ref: opts.ref || 'master'
 			})
 			remote = 'origin'
-		} catch (e) {
-			if (e.code !== git.E.RemoteDoesNotSupportSmartHTTP) throw e
+		} else if (opts.mode === 'dumb' || opts.mode === 'dumb-noloose') {
 			setprogress({phase: 'Reading HTTP Filesystem'})
 			fs = new LightningFS(url+'_httpbacked', {
 				wipe: true,
 				url: url,
-				urlauto: true
+				urlauto: opts.mode !== 'dumb-noloose'
 			})
 			pfs = fs.promises
-			await pfs.backFile('/HEAD')
+			if (opts.mode === 'dumb-noloose') {
+				await pfs.backFile('/HEAD')
+				await pfs.backFile('/config')
+				await pfs.backFile('/packed-refs')
+				await pfs.backFile('/objects/info/packs')
+				let head = await pfs.readFile('/HEAD')
+				await pfs.writeFile('/HEAD', head)
+				let refs = await pfs.readFile('/packed-refs')
+				await pfs.writeFile('/packed-refs', refs)
+			}
+			let packs = null
 			try {
-				let packs = await pfs.readFile('/objects/info/packs', { encoding: 'utf8' })
-				packs = packs.match(/pack-.{40}\.pack/g)
-				for (let pack of packs) {
-					await pfs.backFile('/objects/pack/' + pack.slice(0, 45) + '.idx')
-				}
+				packs = await pfs.readFile('/objects/info/packs', { encoding: 'utf8' })
 			} catch (e) {}
+			if (packs) {
+				packs = packs.match(/pack-.{40}\.pack/g)
+				for (let i = 0; i < packs.length; ++ i) {
+					let pack = packs[i]
+					try {
+						await pfs.backFile('/objects/pack/' + pack)
+						await pfs.backFile('/objects/pack/' + pack.slice(0, 45) + '.idx')
+					} catch(e) {
+						throw new Error('Missing packfile: ' + pack)
+					}
+					setprogress({phase: 'Probing packs', loaded: i+1, total: packs.length, lengthComputable: true})
+				}
+			}
 			git.plugins.set('fs', fs)
+			setprogress({phase: 'Loading content'})
+		} else {
+			throw new Error('no valid mode set')
 		}
 	
 		let log = await git.log({gitdir: gitdir, depth: 1})

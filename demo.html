@@ -9,7 +9,8 @@
 	let url = location.search ? location.search.slice(1) : 'https://github.com/isomorphic-git/isomorphic-git'
 	gitview({
 		elem: 'body',
-		url: url
+		url: url,
+		mode: url.indexOf('github') >= 0 ? 'smart' : 'dumb-noloose'
 	})
 </script>
 </html>
