@@ -3,7 +3,7 @@
   "version": "1.1.1",
   "description": "Javascript Git Viewer",
   "dependencies": {
-    "@isomorphic-git/lightning-fs": "^3.3.2",
+    "@isomorphic-git/lightning-fs": "fuzzyTew/lightning-fs#http-back",
     "components-jqueryui": "^1.12.1",
     "isomorphic-git": "^0.70.1",
     "jquery": "^3.4.1",
@@ -20,7 +20,7 @@
   },
   "scripts": {
     "dist": "webpack",
-    "dev": "webpack --config webpack.devconfig.js" 
+    "dev": "webpack --config webpack.devconfig.js"
   },
   "author": "Karl Semich <0xloem@gmail.com>",
   "license": "Public Domain"

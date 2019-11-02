@@ -39,6 +39,7 @@ export async function gitview(opts) {
 				gitdir: gitdir,
 				corsProxy: url.indexOf('github.com') >= 0 ? 'https://cors.isomorphic-git.org' : null,
 				url: url,
+				noGitSuffix: true,
 				noCheckout: true,
 				singleBranch: true,
 				depth: 16,
@@ -50,9 +51,18 @@ export async function gitview(opts) {
 			setprogress({phase: 'Reading HTTP Filesystem'})
 			fs = new LightningFS(url+'_httpbacked', {
 				wipe: true,
-				url: url
+				url: url,
+				urlauto: true
 			})
 			pfs = fs.promises
+			await pfs.backFile('/HEAD')
+			try {
+				let packs = await pfs.readFile('/objects/info/packs', { encoding: 'utf8' })
+				packs = packs.match(/pack-.{40}\.pack/g)
+				for (let pack of packs) {
+					await pfs.backFile('/objects/pack/' + pack.slice(0, 45) + '.idx')
+				}
+			} catch (e) {}
 			git.plugins.set('fs', fs)
 		}
 	
