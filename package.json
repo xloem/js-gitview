@@ -1,6 +1,6 @@
 {
   "name": "js-gitview",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Javascript Git Viewer",
   "dependencies": {
     "@isomorphic-git/lightning-fs": "^3.3.2",

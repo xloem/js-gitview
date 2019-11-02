@@ -8,6 +8,7 @@ import $ from 'jquery'
 import 'components-jqueryui'
 import marked from 'marked'
 import * as git from 'isomorphic-git'
+import LightningFS from '@isomorphic-git/lightning-fs'
 
 let pfs, gitdir
 
@@ -21,24 +22,35 @@ const dirImgUrl = URL.createObjectURL(new Blob([dirSvg], {type:'image/svg+xml'})
 
 export async function gitview(opts) {
 
-	pfs = opts.fs.promises
-	git.plugins.set('fs', opts.fs)
+	let fs = new LightningFS(opts.url)
+	pfs = fs.promises
+	git.plugins.set('fs', fs)
         $(opts.elem || 'body').html(mainHtml)
 	//make_structure(opts.elem || $('body'))
 	setprogress({phase: 'Cloning'})
 	console.log(opts.url)
-	let id = (await git.hashBlob({object:opts.url})).oid
-	gitdir = '/' + id
-	await git.clone({
-		gitdir: gitdir,
-		corsProxy: opts.url.indexOf('github.com') >= 0 ? 'https://cors.isomorphic-git.org' : null,
-		url: opts.url,
-		ref: opts.ref || 'master',
-		singleBranch: true,
-		noCheckout: true,
-		depth: 1
-	})
-	delprogress()
+	//let id = (await git.hashBlob({object:opts.url})).oid
+	gitdir = '/'// + id
+	try {
+		await git.clone({
+			gitdir: gitdir,
+			corsProxy: opts.url.indexOf('github.com') >= 0 ? 'https://cors.isomorphic-git.org' : null,
+			url: opts.url,
+			ref: opts.ref || 'master',
+			singleBranch: true,
+			noCheckout: true,
+			depth: 1
+		})
+	} catch (e) {
+		if (e.code !== git.E.RemoteDoesNotSupportSmartHTTP) throw e
+		setprogress({phase: 'Reading HTTP Filesystem'})
+		fs = new LightningFS(opts.url+'_httpbacked', {
+			wipe: true,
+			url: opts.url
+		})
+		pfs = fs.promises
+		git.plugins.set('fs', fs)
+	}
 
 	let log = await git.log({gitdir: gitdir, depth: 1})
 	log = log[0]
@@ -51,7 +63,8 @@ export async function gitview(opts) {
 	let logtime = new Date((log.author.timestamp + log.author.timezoneOffset * 60) * 1000)
 	$('#lastcommit-id').html('Latest commit ' + logid + ' on ' + logtime.toDateString())
 
-	updatenavpath()
+	await updatenavpath()
+	delprogress()
 }
 
 /*
