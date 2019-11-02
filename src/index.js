@@ -10,7 +10,7 @@ import marked from 'marked'
 import * as git from 'isomorphic-git'
 import LightningFS from '@isomorphic-git/lightning-fs'
 
-let pfs, gitdir
+let pfs, gitdir, remote = null, branch
 
 git.plugins.set('emitter', {emit:(type,obj) => {
 	if (type === 'message') setmessage(obj)
@@ -23,6 +23,7 @@ const dirImgUrl = URL.createObjectURL(new Blob([dirSvg], {type:'image/svg+xml'})
 export async function gitview(opts) {
 
 	let url = (new URL(opts.url, window.location.href)).href
+	branch = opts.ref || 'master'
 	let fs = new LightningFS(url)
 	pfs = fs.promises
 	git.plugins.set('fs', fs)
@@ -33,39 +34,49 @@ export async function gitview(opts) {
 	//let id = (await git.hashBlob({object:opts.url})).oid
 	gitdir = '/'// + id
 	try {
-		await git.clone({
-			gitdir: gitdir,
-			corsProxy: url.indexOf('github.com') >= 0 ? 'https://cors.isomorphic-git.org' : null,
-			url: url,
-			ref: opts.ref || 'master',
-			singleBranch: true,
-			noCheckout: true,
-			depth: 1
-		})
-	} catch (e) {
-		if (e.code !== git.E.RemoteDoesNotSupportSmartHTTP) throw e
-		setprogress({phase: 'Reading HTTP Filesystem'})
-		fs = new LightningFS(url+'_httpbacked', {
-			wipe: true,
-			url: url
-		})
-		pfs = fs.promises
-		git.plugins.set('fs', fs)
+		try {
+			await git.clone({
+				gitdir: gitdir,
+				corsProxy: url.indexOf('github.com') >= 0 ? 'https://cors.isomorphic-git.org' : null,
+				url: url,
+				noCheckout: true,
+				singleBranch: true,
+				depth: 16,
+				ref: opts.ref || 'master'
+			})
+			remote = 'origin'
+		} catch (e) {
+			if (e.code !== git.E.RemoteDoesNotSupportSmartHTTP) throw e
+			setprogress({phase: 'Reading HTTP Filesystem'})
+			fs = new LightningFS(url+'_httpbacked', {
+				wipe: true,
+				url: url
+			})
+			pfs = fs.promises
+			git.plugins.set('fs', fs)
+		}
+	
+		let log = await git.log({gitdir: gitdir, depth: 1})
+	        branch = (await git.currentBranch({ gitdir: gitdir })) || 'HEAD'
+		log = log[0]
+		let logname = log.author.email.slice(0, log.author.email.indexOf('@'))
+		let logmsg = log.message
+		let logline = logmsg.indexOf('\n')
+		if (logline >= 0) logmsg = logmsg.slice(0, logline)
+		$('#lastcommit-log').html('<b>' + logname + '</b> ' + logmsg)
+		let logid = log.oid.slice(0, 7)
+		let logtime = new Date((log.author.timestamp + log.author.timezoneOffset * 60) * 1000)
+		$('#lastcommit-id').html('Latest commit ' + logid + ' on ' + logtime.toDateString())
+	
+		await updatenavpath()
+		delprogress()
+	} catch(e) {
+		setprogress({phase: e.code})
+		setmessage(e.message)
+		return
 	}
 
-	let log = await git.log({gitdir: gitdir, depth: 1})
-	log = log[0]
-	let logname = log.author.email.slice(0, log.author.email.indexOf('@'))
-	let logmsg = log.message
-	let logline = logmsg.indexOf('\n')
-	if (logline >= 0) logmsg = logmsg.slice(0, logline)
-	$('#lastcommit-log').html('<b>' + logname + '</b> ' + logmsg)
-	let logid = log.oid.slice(0, 7)
-	let logtime = new Date((log.author.timestamp + log.author.timezoneOffset * 60) * 1000)
-	$('#lastcommit-id').html('Latest commit ' + logid + ' on ' + logtime.toDateString())
-
-	await updatenavpath()
-	delprogress()
+	console.log(await git.listBranches({gitdir: gitdir, remote: remote}))
 }
 
 /*
