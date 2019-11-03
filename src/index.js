@@ -10,7 +10,7 @@ import marked from 'marked'
 import * as git from 'isomorphic-git'
 import LightningFS from '@isomorphic-git/lightning-fs'
 
-let pfs, gitdir, remote = null, branch
+let pfs, gitdir, remote = null, branch, depth
 
 git.plugins.set('emitter', {emit:(type,obj) => {
 	if (type === 'message') setmessage(obj)
@@ -23,15 +23,16 @@ const dirImgUrl = URL.createObjectURL(new Blob([dirSvg], {type:'image/svg+xml'})
 export async function gitview(opts) {
 	let url = (new URL(opts.url, window.location.href)).href
 	branch = opts.ref || 'master'
+	depth = opts.depth || 256
 	let fs = new LightningFS(url)
 	pfs = fs.promises
 	git.plugins.set('fs', fs)
         $(opts.elem || 'body').html(mainHtml)
-	//make_structure(opts.elem || $('body'))
+
 	setprogress({phase: 'Cloning'})
 	console.log(url)
-	//let id = (await git.hashBlob({object:opts.url})).oid
-	gitdir = '/'// + id
+
+	gitdir = '/'
 	try {
 		if (opts.mode === 'smart') {
 			await git.clone({
@@ -41,8 +42,8 @@ export async function gitview(opts) {
 				noGitSuffix: true,
 				noCheckout: true,
 				singleBranch: true,
-				depth: 16,
-				ref: opts.ref || 'master'
+				depth: depth,
+				ref: branch
 			})
 			remote = 'origin'
 		} else if (opts.mode === 'dumb' || opts.mode === 'dumb-noloose') {
@@ -63,49 +64,45 @@ export async function gitview(opts) {
 				let refs = await pfs.readFile('/packed-refs')
 				await pfs.writeFile('/packed-refs', refs)
 			}
+			let promises = []
+			let config = await pfs.readFile('/config', { encoding: 'utf8' })
+			let branches = [...config.matchAll(/\[branch "([^"]*)"\]/g)].map(x=>x[1])
+			for (let branch of branches) {
+				promises.push((async () => {
+					pfs.backFile('/refs/heads/' + branch)
+				})().catch(()=>{}))
+			}
 			let packs = null
 			try {
 				packs = await pfs.readFile('/objects/info/packs', { encoding: 'utf8' })
 			} catch (e) {}
 			if (packs) {
 				packs = packs.match(/pack-.{40}\.pack/g)
-				let promises = []
 				let i = 0
 				for (let pack of packs) {
-					promises.push(new Promise(async (resolve, reject) => {
-						try {
-							pfs.backFile('/objects/pack/' + pack)
-							await pfs.backFile('/objects/pack/' + pack.slice(0, 45) + '.idx')
-						} catch(e) {
-							reject(new Error('Missing packfile: ' + pack))
-						}
+					promises.push((async () => {
+						pfs.backFile('/objects/pack/' + pack)
+						await pfs.backFile('/objects/pack/' + pack.slice(0, 45) + '.idx')
 						++ i
 						setprogress({phase: 'Identifying packfiles', loaded: i, total: packs.length, lengthComputable: true})
-						resolve()
-					}))
+					})())
 				}
-				await Promise.all(promises)
 			}
+			await Promise.all(promises)
 			git.plugins.set('fs', fs)
 			setprogress({phase: 'Loading content'})
 		} else {
 			throw new Error('no valid mode set')
 		}
 	
-		let log = await git.log({gitdir: gitdir, depth: 1})
-	        branch = (await git.currentBranch({ gitdir: gitdir })) || 'HEAD'
-		log = log[0]
-		let logname = log.author.email.slice(0, log.author.email.indexOf('@'))
-		let logmsg = log.message
-		let logline = logmsg.indexOf('\n')
-		if (logline >= 0) logmsg = logmsg.slice(0, logline)
-		$('#lastcommit-log').html('<b>' + logname + '</b> ' + logmsg)
-		let logid = log.oid.slice(0, 7)
-		let logtime = new Date((log.author.timestamp + log.author.timezoneOffset * 60) * 1000)
-		$('#lastcommit-id').html('Latest commit ' + logid + ' on ' + logtime.toDateString())
+		window.git = git
+		let oid = await git.resolveRef({gitdir:gitdir,ref:branch})
+		let commit = await git.readObject({gitdir:gitdir,oid:oid})
+		let log = getCommitSummary(commit)
+		$('#lastcommit-log').html('<b>' + log.name + '</b> ' + log.msg)
+		$('#lastcommit-id').html('Latest commit ' + oid.slice(0, 7) + ' ' + log.age)
 	
 		await updatenavpath()
-		delprogress()
 	} catch(e) {
 		setprogress({phase: e.code})
 		setmessage(e.message)
@@ -116,18 +113,6 @@ export async function gitview(opts) {
 	console.log(await git.listBranches({gitdir: gitdir, remote: 'origin'}))
 }
 
-/*
-let filerows, readme_elem, readme_title, readme_body
-
-let make_structure = function(root) {
-	let maincont = $('<div>').addClass('main-container')
-	let main = $('<div>').addClass('main-elem').appendTo(maincont)
-	let head = $('<div>').addClass('elem-head').appendTo(
-	let body = $('<div>').addClass('elem-body').appendTo(filesmain)
-	let table = $('<div>')
-}
-*/
-
 let updatenavpath = async function(event)
 {
 	let loc = location.hash
@@ -137,9 +122,12 @@ let updatenavpath = async function(event)
 window.onpopstate = updatenavpath
 
 let navpath = async function(dir) {
-	let oid = await git.resolveRef({gitdir:gitdir,ref:'HEAD'})
-	let tree = await git.readObject({gitdir:gitdir,oid:oid,filepath:dir})
+	let oid = await git.resolveRef({gitdir:gitdir,ref:branch})
+	let commit = await git.readObject({gitdir:gitdir,oid:oid})
+	let tree = await git.readObject({gitdir:gitdir,oid:commit.oid,filepath:dir})
 	let tbody = $('.files #filerows')
+	let msgmap = {}
+	let msgsleft = tree.object.entries.length
 	tbody.empty()
 	let fname, fcontent = null
 	for (let entry of tree.object.entries) {
@@ -159,13 +147,10 @@ let navpath = async function(dir) {
 		}
 		$('<td>').addClass('icon').append(icon).appendTo(tr)
 		$('<td>').addClass('content').append(link).appendTo(tr)
-		//let log = await git.log({gitdir: gitdir, depth: 1})
-		//log = log[0].message
-		//let line = log.indexOf('\n')
-		//if (line >= 0) log = log.slice(0, line)
-		//$('<td>').text(log).appendTo(tr)
-		$('<td>').addClass('message').appendTo(tr)
-		$('<td>').addClass('age').appendTo(tr)
+		msgmap[file] = {
+			msg: $('<td>').addClass('message').appendTo(tr),
+			age: $('<td>').addClass('age').html('<i>long ago</i>').appendTo(tr)
+		}
 		if (entry.type === 'tree') {
 			tbody.prepend(tr)
 		} else {
@@ -196,6 +181,74 @@ let navpath = async function(dir) {
 	} else {
 		$('#readme').empty()
 		$('#readme-elem').hide()
+	}
+
+	// walk commit history to give each file a message and age
+	let nextoids = []
+	let histdepth = 0
+	while (msgsleft && ++histdepth <= depth) {
+		let log = null
+		nextoids.push(...commit.object.parent)
+		let nextcommit, nexttree
+		let nextoid = nextoids.shift()
+		let oidtree = {}
+		if (nextoid) try {
+			nextcommit = await git.readObject({gitdir:gitdir,oid:nextoid})
+			nexttree = await git.readObject({gitdir:gitdir,oid:nextcommit.oid,filepath:dir})
+			for (let entry of nexttree.object.entries) {
+				oidtree[entry.path] = entry.oid;
+			}
+		} catch (e) {}
+		for (let entry of tree.object.entries) {
+			if (!(entry.path in msgmap)) {
+				continue
+			}
+			if (entry.path in oidtree && entry.oid === oidtree[entry.path]) {
+				continue
+			}
+			// use commit for this file
+			if (!log) log = getCommitSummary(commit)
+			msgmap[entry.path].msg.text(log.msg)
+			msgmap[entry.path].age.text(log.age)
+			delete msgmap[entry.path]
+			-- msgsleft
+		}
+		commit = nextoid && nextcommit
+		tree = nextoid && nexttree
+		setprogress({phase: 'Walking history', loaded: histdepth, total: depth, lengthComputable: true})
+	}
+	delprogress()
+}
+
+function getCommitSummary(commit)
+{
+	let log = commit.object
+	let msg = log.message
+	let line = msg.indexOf('\n')
+	if (line >= 0) msg = msg.slice(0, line)
+	let time = new Date((log.author.timestamp + log.author.timezoneOffset * 60) * 1000)
+	let age = (Date.now() - time.getTime()) / 1000
+	let agenum, ageword
+	if (age < 60) {
+		age = Math.round(age) + ' second'
+	} else if (age < 60 * 59.5) {
+		age = Math.round(age / 60) + ' minute'
+	} else if (age < 60 * 60 * 23.5) {
+		age = Math.round(age / (60 * 60)) + ' hour'
+	} else if (age < 6.5 * 60 * 60 * 24) {
+		age = Math.round(age / (60 * 60 * 24)) + ' day'
+	} else if (age < (31 - 4) * 60 * 60 * 24) {
+		age = Math.round(age / (60 * 60 * 24 * 7)) + ' week'
+	} else if (age < (365.25 - 16) * 60 * 60 * 24) {
+		age = Math.round(age / (60 * 60 * 24 * 365.25 / 12)) + ' month'
+	} else {
+		age = Math.round(age / (365.25 * 60 * 60 * 24)) + ' year'
+	}
+	if (age.slice(0,2) !== '1 ') age += 's'
+	return {
+		name: log.author.email.slice(0, log.author.email.indexOf('@')),
+		msg: msg,
+		age: age + ' ago'
 	}
 }
 
