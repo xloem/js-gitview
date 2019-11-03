@@ -112,7 +112,8 @@ export async function gitview(opts) {
 		return
 	}
 
-	console.log(await git.listBranches({gitdir: gitdir, remote: remote}))
+	console.log(await git.listBranches({gitdir: gitdir, remote: null}))
+	console.log(await git.listBranches({gitdir: gitdir, remote: 'origin'}))
 }
 
 /*
@@ -140,7 +141,7 @@ let navpath = async function(dir) {
 	let tree = await git.readObject({gitdir:gitdir,oid:oid,filepath:dir})
 	let tbody = $('.files #filerows')
 	tbody.empty()
-	let readme = null
+	let fname, fcontent = null
 	for (let entry of tree.object.entries) {
 		let file = entry.path
 		let tr = $('<tr>').addClass('filerow')
@@ -170,9 +171,10 @@ let navpath = async function(dir) {
 		} else {
 			tbody.append(tr)
 		}
-		if (file === 'README.md') {
-			readme = await git.readObject({gitdir:gitdir,oid:entry.oid,encoding:'utf8'})
-			readme = readme.object
+		if (!fcontent && entry.type === 'blob' && file.match(/^(README|index)(\.md(wn)?)?$/)) {
+			fname = file
+			fcontent = await git.readObject({gitdir:gitdir,oid:entry.oid,encoding:'utf8'})
+			fcontent = fcontent.object
 		}
 	}
 	if (dir != '') {
@@ -186,12 +188,12 @@ let navpath = async function(dir) {
 		$('<td>').appendTo(tr)
 		tbody.prepend(tr)
 	}
-	if (readme) {
-		$('<h3>').text('README.md').appendTo($('#readme-title'))
-		$('#readme').html(marked(readme))
+	$('#readme-title').empty()
+	if (fcontent) {
+		$('<h3>').text(fname).appendTo($('#readme-title'))
+		$('#readme').html(marked(fcontent))
 		$('#readme-elem').show()
 	} else {
-		$('#readme-title').empty()
 		$('#readme').empty()
 		$('#readme-elem').hide()
 	}
