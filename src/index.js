@@ -69,16 +69,22 @@ export async function gitview(opts) {
 			} catch (e) {}
 			if (packs) {
 				packs = packs.match(/pack-.{40}\.pack/g)
-				for (let i = 0; i < packs.length; ++ i) {
-					let pack = packs[i]
-					try {
-						await pfs.backFile('/objects/pack/' + pack)
-						await pfs.backFile('/objects/pack/' + pack.slice(0, 45) + '.idx')
-					} catch(e) {
-						throw new Error('Missing packfile: ' + pack)
-					}
-					setprogress({phase: 'Probing packs', loaded: i+1, total: packs.length, lengthComputable: true})
+				let promises = []
+				let i = 0
+				for (let pack of packs) {
+					promises.push(new Promise(async (resolve, reject) => {
+						try {
+							pfs.backFile('/objects/pack/' + pack)
+							await pfs.backFile('/objects/pack/' + pack.slice(0, 45) + '.idx')
+						} catch(e) {
+							reject(new Error('Missing packfile: ' + pack))
+						}
+						++ i
+						setprogress({phase: 'Identifying packfiles', loaded: i, total: packs.length, lengthComputable: true})
+						resolve()
+					}))
 				}
+				await Promise.all(promises)
 			}
 			git.plugins.set('fs', fs)
 			setprogress({phase: 'Loading content'})
