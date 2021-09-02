@@ -5,7 +5,7 @@
   "dependencies": {
     "@isomorphic-git/lightning-fs": "fuzzyTew/lightning-fs#http-back",
     "components-jqueryui": "^1.12.1",
-    "isomorphic-git": "^0.70.1",
+    "isomorphic-git": "^1.8.2",
     "jquery": "^3.4.1",
     "marked": "^0.7.0"
   },
