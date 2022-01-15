@@ -7,7 +7,7 @@
     "components-jqueryui": "^1.12.1",
     "isomorphic-git": "^0.70.1",
     "jquery": "^3.4.1",
-    "marked": "^0.7.0"
+    "marked": "^4.0.10"
   },
   "devDependencies": {
     "css-loader": "^3.2.0",
